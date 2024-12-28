@@ -1,37 +1,48 @@
 from typing import Dict, Tuple
 
-from pydantic import BaseModel, BaseSettings
-from pydantic_settings import SettingsConfigDict
+from pydantic import BaseSettings, validator
 
 
-class LoggingConfig(BaseModel):
+class LoggingConfig(BaseSettings):
     LEVEL: str = "DEBUG"
     PATH: str = "logs/app.log"
 
+    class Config:
+        env_prefix = "LOG_"
 
-class DatabaseConfig(BaseModel):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+
+class DatabaseConfig(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
     DB_NAME: str
-    DB_HOST: str = "postgres"
+    DB_HOST: str = "localhost"
     DB_PORT: int = 5432
-    DB_MODELS: Tuple[str] = ("src.models", "aerich.models")
+    DB_MODELS: Tuple[str, ...] = ("src.models", "aerich.models")
+
+    class Config:
+        env_prefix = "DB_"
 
     @property
-    def url(self):
+    def url(self) -> str:
         return f"asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
+    @validator("DB_PORT")
+    def validate_port(cls, value):
+        if not (1024 <= value <= 65535):
+            raise ValueError("DB_PORT must be between 1024 and 65535.")
+        return value
 
-class DiscordClient(BaseModel):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+
+class DiscordClient(BaseSettings):
     CLIENT_ID: str
     CLIENT_SECRET: str
-    REDIRECT_URL: str = ""
+    REDIRECT_URL: str = "http://localhost:8000/callback"
+
+    class Config:
+        env_prefix = "DISCORD_"
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+class AppSettings(BaseSettings):
     TITLE: str = "CISTiersAPI"
     DESCRIPTION: str | None = None
     HOST: str = "0.0.0.0"
@@ -44,12 +55,16 @@ class Settings(BaseSettings):
     REDOC_URL: str | None = "/redoc"
     OPENAPI_PREFIX: str = ""
 
-    logging: LoggingConfig = LoggingConfig
-    db: DatabaseConfig = DatabaseConfig
-    discord: DiscordClient = DiscordClient
+    logging: LoggingConfig = LoggingConfig()
+    db: DatabaseConfig = DatabaseConfig()
+    discord: DiscordClient = DiscordClient()
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = False
 
     @property
-    def set_app_attributes(self) -> Dict[str, str | bool | None]:
+    def app_attributes(self) -> Dict[str, str | bool | None]:
         return {
             "title": self.TITLE,
             "version": self.VERSION,

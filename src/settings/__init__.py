@@ -1,6 +1,6 @@
-from .base import Settings
+from .base import AppSettings
 
-settings = Settings()
+settings = AppSettings()
 
 discord = settings.discord
 db = settings.db
